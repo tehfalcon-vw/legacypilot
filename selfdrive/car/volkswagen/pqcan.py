@@ -2,7 +2,7 @@ def create_steering_control(packer, bus, apply_steer, lkas_enabled):
   values = {
     "LM_Offset": abs(apply_steer),
     "LM_OffSign": 1 if apply_steer < 0 else 0,
-    "HCA_Status": 5 if (lkas_enabled and apply_steer != 0) else 3,
+    "HCA_Status": 7 if (lkas_enabled and apply_steer != 0) else 3,
     "Vib_Freq": 16,
   }
 
@@ -10,15 +10,7 @@ def create_steering_control(packer, bus, apply_steer, lkas_enabled):
 
 
 def create_lka_hud_control(packer, bus, ldw_stock_values, enabled, steering_pressed, hud_alert, hud_control):
-  values = {}
-  if len(ldw_stock_values):
-    values = {s: ldw_stock_values[s] for s in [
-      "LDW_SW_Warnung_links",   # Blind spot in warning mode on left side due to lane departure
-      "LDW_SW_Warnung_rechts",  # Blind spot in warning mode on right side due to lane departure
-      "LDW_Seite_DLCTLC",       # Direction of most likely lane departure (left or right)
-      "LDW_DLC",                # Lane departure, distance to line crossing
-      "LDW_TLC",                # Lane departure, time to line crossing
-    ]}
+  values = ldw_stock_values.copy()
 
   values.update({
     "LDW_Lampe_gelb": 1 if enabled and steering_pressed else 0,
@@ -31,16 +23,11 @@ def create_lka_hud_control(packer, bus, ldw_stock_values, enabled, steering_pres
   return packer.make_can_msg("LDW_Status", bus, values)
 
 
-def create_acc_buttons_control(packer, bus, gra_stock_values, cancel=False, resume=False):
-  values = {s: gra_stock_values[s] for s in [
-    "GRA_Hauptschalt",      # ACC button, on/off
-    "GRA_Typ_Hauptschalt",  # ACC button, momentary vs latching
-    "GRA_Kodierinfo",       # ACC button, configuration
-    "GRA_Sender",           # ACC button, CAN message originator
-  ]}
+def create_acc_buttons_control(packer, bus, gra_stock_values, counter, cancel=False, resume=False):
+  values = gra_stock_values.copy()
 
   values.update({
-    "COUNTER": (gra_stock_values["COUNTER"] + 1) % 16,
+    "COUNTER": counter,
     "GRA_Abbrechen": cancel,
     "GRA_Recall": resume,
   })
@@ -83,7 +70,7 @@ def create_acc_accel_control(packer, bus, acc_type, acc_enabled, accel, acc_cont
     "ACS_FreigSollB": acc_enabled,
     "ACS_Sollbeschl": accel if acc_enabled else 3.01,
     "ACS_zul_Regelabw": 0.2 if acc_enabled else 1.27,
-    "ACS_max_AendGrad": 3.0 if acc_enabled else 5.08,
+    "ACS_max_AendGrad": 2.0 if acc_enabled else 5.08,
   }
 
   commands.append(packer.make_can_msg("ACC_System", bus, values))
@@ -95,10 +82,10 @@ def create_acc_hud_control(packer, bus, acc_hud_status, set_speed, lead_distance
   values = {
     "ACA_StaACC": acc_hud_status,
     "ACA_Zeitluecke": 2,
-    "ACA_V_Wunsch": set_speed,
+    "ACA_V_Wunsch": set_speed if set_speed < 250 else 255,
     "ACA_gemZeitl": lead_distance,
     "ACA_PrioDisp": 3,
-    # TODO: restore dynamic pop-to-foreground/highlight behavior with ACA_PrioDisp and ACA_AnzDisplay
+    # TODO: ACA_ID_StaACC, ACA_AnzDisplay, ACA_kmh_mph, ACA_Aend_Zeitluecke
     # TODO: ACA_kmh_mph handling probably needed to resolve rounding errors in displayed setpoint
   }
 
